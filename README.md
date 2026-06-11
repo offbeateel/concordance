@@ -26,6 +26,7 @@ Identity is a name (recorded as provenance, not proven); v1 assumes a single pra
 
 - **First time?** → **[SETUP.md](SETUP.md)** — install, configure, seed canon, connect an instance. Follow it once.
 - **Running it day to day?** → **[OPERATIONS.md](OPERATIONS.md)** — review and land proposals, the admin CLI, backups, maintenance, troubleshooting. This is the one to keep open.
+- **How it works underneath?** → **[ARCHITECTURE.md](ARCHITECTURE.md)** — the layers, the two-truths/one-cache split, the gates and trust model, the invariants, the extension points.
 
 ---
 
