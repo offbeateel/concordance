@@ -1,0 +1,34 @@
+# Concordance v1 — deployment config (flat TOML). Copy to concordance.toml and edit.
+# Point the server at it with CONCORDANCE_CONFIG=/path/to/concordance.toml.
+# Any CONCORDANCE_* env var overrides the matching key here.
+
+git_dir   = "/path/to/concordance.git"   # absolute path to the bare repo (Windows: "C:\\path\\to\\concordance.git")
+approvers = ["practitioner"]          # whose review lands canon
+canon_ref = "refs/heads/main"
+
+# Derived stores. Leave blank to default beside git_dir.
+map_db   = ""                         # throwaway cache — rebuilds via reindex_from_git
+audit_db = ""                         # TRUTH — back this up like the repo
+
+committer_name  = "capstore"          # the bot identity on commits (provenance is the author trailer)
+committer_email = "capstore@concordance.local"
+
+# Embeddings: "stub" (offline dev, lexical proxy) or "local-server" (LM Studio / Ollama).
+embed_backend = "stub"
+embed_url     = "http://localhost:11434"  # Ollama default; LM Studio is usually :1234
+embed_model   = "nomic-embed-text"
+embed_dim     = 768
+# Task prefixes — nomic is prefix-conditioned and ranks BADLY without these (verified live).
+# Keep for nomic/mxbai/arctic-style models; set both to "" for models that don't use prefixes.
+embed_doc_prefix   = "search_document: "
+embed_query_prefix = "search_query: "
+
+# Where the orientation renderer reads this deployment's practice sections from canon.
+orientation_base = "technical/orientation"
+
+# Airlock — TOTP two-phase remote approval (approving through an instance conversation).
+# Provision with `admin totp-provision`; console `land` is unaffected. Floor must exceed the
+# worst-case code lifetime (~90s) so no code obtained at staging survives to landing.
+airlock_secret_path = ""    # blank -> totp.secret beside git_dir; server-side only, never in git
+airlock_floor_s     = 120   # minimum review time between code 1 (stage) and code 2 (land)
+airlock_ceiling_s   = 7200  # staged proposals auto-revert after this
