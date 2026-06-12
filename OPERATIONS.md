@@ -6,6 +6,12 @@ The keep-open doc. Once you're set up ([SETUP.md](SETUP.md)), this is everything
 STASIMA_CONFIG=/abs/path/to/stasima.toml python cap_server.py
 ```
 
+**Two transports** (`transport` in the config):
+- **`stdio`** (default) — each MCP client spawns the server as its own subprocess. Simplest; on-box only; right for a single client at a time.
+- **`http`** — *one* continuously-running server; every instance connects to `http://<host>:<port>/mcp`. Right for "the server lives on this machine and runs all the time," and required once multiple instances connect concurrently (a single process must own the audit chain). Claude Code: `claude mcp add --transport http stasima http://127.0.0.1:8787/mcp`. To keep it running on Windows, register the command as a logon task in Task Scheduler (or wrap it as a service with NSSM).
+
+**Reaching it from your other devices — Tailscale.** Until transport auth lands (1.1), the config *refuses* to bind beyond loopback or a Tailscale 100.x address — nothing can listen toward the open internet, by validation rather than by discipline. With the server on loopback, run `tailscale serve --bg 8787` on the server machine: your other tailnet devices connect via the HTTPS URL it prints, tailnet membership is the auth, and the open internet still sees nothing. (Public exposure — needed for claude.ai web/mobile connectors — is a 1.1-era decision, alongside per-instance tokens.)
+
 All maintenance is through the admin CLI, which you point at the same config:
 
 ```bash

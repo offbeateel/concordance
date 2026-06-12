@@ -27,8 +27,9 @@ from canon import (LOG_DIR, CHAT_ERA_FREEZE, canon_seq, seq_display, reindex_fro
 
 def build_server(store: LocalCapStore, index=None, embedder=None, audit=None, authz=None, airlock=None, *,
                  orientation_text: str = None, orientation_base: str = "technical/orientation",
-                 seq_origin: int = CHAT_ERA_FREEZE, deployment_name: str = "") -> FastMCP:
-    mcp = FastMCP("stasima")
+                 seq_origin: int = CHAT_ERA_FREEZE, deployment_name: str = "",
+                 http_host: str = "127.0.0.1", http_port: int = 8787) -> FastMCP:
+    mcp = FastMCP("stasima", host=http_host, port=http_port)   # host/port used only by the http transport
     has_map = index is not None and embedder is not None
 
     def persp_ref(iid): return PERSP + iid
@@ -446,9 +447,18 @@ def server_from_config(cfg) -> FastMCP:
     store, index, embedder, audit, authz, airlock = components_from_config(cfg)
     return build_server(store, index, embedder, audit, authz, airlock,
                         orientation_base=cfg.orientation_base, seq_origin=cfg.seq_origin,
-                        deployment_name=cfg.deployment_name)
+                        deployment_name=cfg.deployment_name,
+                        http_host=cfg.http_host, http_port=cfg.http_port)
 
 
 if __name__ == "__main__":
     from config import Config
-    server_from_config(Config.load(os.environ.get("STASIMA_CONFIG"))).run()
+    _cfg = Config.load(os.environ.get("STASIMA_CONFIG"))
+    _srv = server_from_config(_cfg)
+    if _cfg.transport == "http":
+        # One continuously-running server; clients connect to http://<host>:<port>/mcp.
+        # Config validation already restricted the bind to loopback/tailnet (no transport auth
+        # until 1.1); reach it from other devices via `tailscale serve` proxying to loopback.
+        _srv.run(transport="streamable-http")
+    else:
+        _srv.run()   # stdio: the connecting client spawns this process

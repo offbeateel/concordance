@@ -58,6 +58,13 @@ class Config:
     airlock_secret_path: str = ""   # blank -> derived beside git_dir; NOT in git
     airlock_floor_s: int = 120
     airlock_ceiling_s: int = 7200
+    # transport: "stdio" (default — each client spawns the server) or "http" (one continuously-
+    # running server; clients connect to http://<host>:<port>/mcp). Until transport auth exists
+    # (1.1), http binds are restricted to loopback or the Tailscale CGNAT range — the tailnet
+    # slots in via `tailscale serve` proxying to loopback; nothing listens toward the open internet.
+    transport: str = "stdio"
+    http_host: str = "127.0.0.1"
+    http_port: int = 8787
 
     @classmethod
     def load(cls, path: str | None = None, env: dict | None = None) -> "Config":
@@ -75,7 +82,7 @@ class Config:
             data["embed_backend"] = "local-server"
         if isinstance(data.get("approvers"), str):
             data["approvers"] = [a.strip() for a in data["approvers"].split(",") if a.strip()]
-        for intf in ("embed_dim", "airlock_floor_s", "airlock_ceiling_s", "seq_origin"):
+        for intf in ("embed_dim", "airlock_floor_s", "airlock_ceiling_s", "seq_origin", "http_port"):
             if intf in data:
                 try:
                     data[intf] = int(data[intf])
@@ -102,6 +109,31 @@ class Config:
             raise ConfigError("at least one approver is required")
         if self.airlock_floor_s <= 0 or self.airlock_ceiling_s <= self.airlock_floor_s:
             raise ConfigError("airlock gates must satisfy 0 < airlock_floor_s < airlock_ceiling_s")
+        if self.transport not in ("stdio", "http"):
+            raise ConfigError(f"transport must be 'stdio' or 'http', got {self.transport!r}")
+        if self.transport == "http":
+            if not (0 < self.http_port < 65536):
+                raise ConfigError("http_port must be 1-65535")
+            self._check_bind_address(self.http_host)
+
+    @staticmethod
+    def _check_bind_address(host: str) -> None:
+        """Structural enforcement of the v1 exposure decision: with no transport auth yet, the
+        server may listen only on loopback or a Tailscale tailnet address (CGNAT 100.64.0.0/10).
+        Wider binds (LAN, 0.0.0.0, public) arrive with transport auth in 1.1."""
+        import ipaddress
+        if host == "localhost":
+            return
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            raise ConfigError(f"http_host must be an IP address or 'localhost', got {host!r}")
+        if ip.is_loopback or ip in ipaddress.ip_network("100.64.0.0/10"):
+            return
+        raise ConfigError(
+            f"http_host {host!r} would listen beyond loopback/tailnet, and transport auth does not "
+            f"exist yet (planned for 1.1). Bind 127.0.0.1 and use `tailscale serve` to reach it "
+            f"from your devices, or bind your machine's Tailscale 100.x address directly.")
 
     def resolved_map_db(self) -> str:
         return self.map_db or os.path.join(os.path.dirname(self.git_dir), "map_index.sqlite")

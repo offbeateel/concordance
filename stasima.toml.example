@@ -33,3 +33,13 @@ orientation_base = "technical/orientation"
 airlock_secret_path = ""    # blank -> totp.secret beside git_dir; server-side only, never in git
 airlock_floor_s     = 120   # minimum review time between code 1 (stage) and code 2 (land)
 airlock_ceiling_s   = 7200  # staged proposals auto-revert after this
+
+# Transport. "stdio" (default): each MCP client spawns the server itself — simplest, on-box only.
+# "http": ONE continuously-running server; clients connect to http://<host>:<port>/mcp
+# (Claude Code: `claude mcp add --transport http stasima http://127.0.0.1:8787/mcp`).
+# Until transport auth exists (1.1), http binds are restricted to loopback or a Tailscale
+# 100.x address — for other devices, run `tailscale serve --bg 8787` and connect via the
+# tailnet HTTPS URL it prints. Nothing listens toward the open internet.
+transport  = "stdio"
+http_host  = "127.0.0.1"
+http_port  = 8787
