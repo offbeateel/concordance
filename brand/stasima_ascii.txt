@@ -1,0 +1,37 @@
+STASIMA — text-only marks
+=========================
+
+Cassette with trefoil window (primary, for README / PyPI / CLI banner):
+
+ .-------------------------------------------------------.
+ |                  S  T  A  S  I  M  A                  |
+ |-------------------------------------------------------|
+ |                .---------___---------.                |
+ |                |        /   \        |                |
+ |     .----.     |       (     )       |     .----.     |
+ |     |(o) |=====|     ___\   /___     |=====| (o)|     |
+ |     '----'     |    /    \ /    \    |     '----'     |
+ |                |   (      X      )   |                |
+ |                |    \____/ \____/    |                |
+ |                '---------------------'                |
+ |          ___________________________________          |
+ |         /  o                             o  \         |
+ '---------'-----------------------------------'---------'
+
+Trefoil knot (standalone compact mark):
+
+        ___
+       /   \
+      (     )
+    ___\   /___
+   /    \ /    \
+  (      X      )
+   \____/ \____/
+
+Usage notes:
+- Always present inside a fenced code block (``` ... ```) or <pre> so
+  monospace alignment survives Markdown rendering (PyPI, GitHub).
+- The cassette is 58 columns wide and 14 rows tall -- still safe for
+  80-col terminals and PyPI's rendered description.
+- Plain ASCII only (no box-drawing Unicode), so it renders identically
+  in cp437/latin-1/UTF-8 terminals, pagers, and pip-era consoles.
