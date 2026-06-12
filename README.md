@@ -1,4 +1,6 @@
-<img src="brand/favicon-128.png" alt="Concordance — the trefoil mark" width="96" align="right"/>
+<p align="center">
+  <img src="brand/cassette_tape_trefoil.svg" alt="Concordance — the cassette-and-trefoil mark" width="420"/>
+</p>
 
 # Concordance v1
 
