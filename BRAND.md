@@ -63,7 +63,7 @@ registered.
 - Using the marks in a **paid or commercial offering** built around the project
   (e.g. a hosted "Stasima" service).
 
-If in doubt, ask: the project's issue tracker: **https://github.com/offbeateel/stasima/issues**.
+If in doubt, ask: the project's issue tracker: **https://github.com/antistrophos/stasima/issues**.
 
 ## 5. Uses that are not permitted
 
@@ -141,9 +141,9 @@ exactly why an open code license and a protected brand can coexist.
 ## 9. Questions
 
 For anything not covered here, or to request permission, contact
-the project's issue tracker: **https://github.com/offbeateel/stasima/issues**. We're happy to say yes to reasonable community uses.
+the project's issue tracker: **https://github.com/antistrophos/stasima/issues**. We're happy to say yes to reasonable community uses.
 
 ---
 
 *© 2026 Antistrophos. "Stasima" and the Stasima logo are trademarks
-of Antistrophos. Project repository: https://github.com/offbeateel/stasima.*
+of Antistrophos. Project repository: https://github.com/antistrophos/stasima.*
