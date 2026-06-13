@@ -83,4 +83,21 @@ bk2 = run("backup", dest)   # repeatable: incremental push into the same mirror
 assert bk2["git_sync_ok"]
 print("backup   ", {"synced_refs": bk["synced_refs"], "copied": bk["copied"]})
 
+# mirror: off-machine backup to a git remote — content refs + audit snapshot, NO secret
+remote = os.path.join(work, "remote.git")
+sp.run(["git", "init", "--bare", "-q", remote], check=True)
+mr = run("mirror", remote)
+assert mr["git_sync_ok"] and mr["audit_events"] >= 1, mr
+rem = LocalCapStore(remote, approvers={"x"})
+assert rem.resolve_ref("refs/heads/main") == store.resolve_ref("refs/heads/main"), "content mirrored"
+assert rem.resolve_ref("refs/tags/state/3c"), "state tag mirrored"
+audit_oid = rem.resolve_ref("refs/backup/audit")
+assert audit_oid, "audit snapshot rode its dedicated ref"
+# the audit blob is restorable from the remote, and the secret did NOT travel
+files = rem.list_paths("refs/backup/audit")
+assert files == ["audit.sqlite"], files
+assert "NOT sent" in mr["note"]
+run("mirror", remote)   # repeatable / incremental
+print("mirror   ", {"synced_refs": mr["synced_refs"], "audit_ref": audit_oid[:10]})
+
 print("\nOK -- admin CLI: reindex / reconcile / verify / status / preview / land all verified.")

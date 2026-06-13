@@ -406,6 +406,27 @@ class LocalCapStore:
     def fetch_all(self, remote: str = "origin") -> None:
         self._git("fetch", remote, *self.SYNC_REFSPECS)
 
+    def commit_file(self, ref: str, filename: str, content: bytes, message: str) -> RefInfo:
+        """Commit a single file as the whole content of `ref` — a dedicated, force-advanced ref for
+        binary sidecars (e.g. the audit snapshot in an off-machine mirror). History accrues on the ref;
+        it is not a content namespace, so it rides outside canon/perspective/proposal rules."""
+        tree = self._build_tree(None, {filename: content})
+        parent = self.resolve_ref(ref)
+        args = ["commit-tree", tree] + (["-p", parent] if parent else [])
+        oid = self._git(*args, input=(message + "\n").encode(),
+                        extra_env=self._author_env("backup")).decode().strip()
+        self._git("update-ref", ref, oid)
+        return RefInfo(ref, oid)
+
+    def mirror_push(self, remote: str, url: str, extra_refspecs=()) -> dict:
+        """Push the content refs (+ any extra refspecs) to a remote URL and verify nothing dropped.
+        The off-machine backup primitive — same anti-silent-loss verification as push_all."""
+        self.set_remote(remote, url)
+        rc, _, err = self._run("push", remote, *self.SYNC_REFSPECS, *extra_refspecs)
+        if rc != 0:
+            raise BackendUnavailable(f"push to {url} failed: {err.strip()}")
+        return self.verify_sync(remote)
+
     def verify_sync(self, remote: str = "origin") -> dict:
         """Compare local refs against the remote's; surface anything missing or mismatched.
         This is the anti-silent-loss check — a push without it is just a hope."""

@@ -69,7 +69,8 @@ Troubleshooting the gates (each error names the failed gate and both values): "r
 | `inbox [--all] [--read PATH]` | your mail, from the cockpit — unread by default; `--read` marks handled |
 | `totp-provision [--qr] [--force]` | generate (or re-display / rotate) the airlock secret |
 | `totp-check <code>` | verify a phone code; consumes nothing, diagnoses clock skew |
-| `backup <dest>` | full backup of everything that is truth: git mirror (all refs + state tags, verified), consistent audit snapshot, config, TOTP secret |
+| `backup <dest>` | full **local** backup: git mirror (all refs + state tags, verified), consistent audit snapshot, config, TOTP secret. For a same-trust machine move |
+| `mirror <url>` | off-machine backup to a git **remote** (e.g. a private repo): content refs + audit snapshot on `refs/backup/audit`, verified. **No secret pushed.** Run on a cadence |
 
 ---
 
@@ -99,6 +100,8 @@ Out-of-band notification isn't built yet (a 1.x item), so an instance's messages
   git -C stasima.git push <remote> 'refs/heads/*:refs/heads/*' 'refs/cap/*:refs/cap/*' 'refs/tags/state/*:refs/tags/state/*'
   ```
   This is exactly the mistake `backup` exists to make impossible — prefer the command.
+- **Off-machine, on a cadence:** `mirror <url>` pushes content + a consistent audit snapshot to a git remote — ideally a **private** repo, separate from the public suite repo (your canon is never the suite's concern). One command, verified, the TOTP secret deliberately excluded (it's the airlock key; re-provision on restore). This is the "doesn't live and die with one machine" answer; `backup` is the local-bundle / same-trust-move answer.
+- **The live deployment is single-writer, local-disk.** The two truths (`git_dir`, `audit.sqlite`) belong on the server machine's plain local disk — **not** a cloud-synced folder (a sync client copying git/sqlite mid-write corrupts them) and **not** inside the suite clone. Other devices are *clients* (over the tailnet), never second writers. `mirror`/`backup` snapshots are sync-safe; the live copy is not.
 - **`map_index.sqlite` needs no backup** — `reindex` regenerates it from git.
 - **Verify integrity** anytime with `verify`. The audit chain is hash-linked, and the per-land git checkpoint lets git witness any tampering of the SQLite log.
 - **Moving machines:** run `backup`, carry the destination folder + the suite code; on the new box `pip install mcp`, point the config at the mirrored repo (or clone from it), `reindex`, run. The backup includes the TOTP secret, so the airlock pairing moves with you.

@@ -9,9 +9,12 @@ and `land` (promotion to canon) IS the human gate, performed here out of band.
       totp-provision      generate the airlock TOTP secret (prints the otpauth:// URI)
       totp-check <code>   verify a code from your app (consumes nothing; diagnoses clock skew)
       inbox [--all] [--read PATH]   the practitioner's mail, from the cockpit (pull)
-      backup <dest>       full backup of everything that is truth: git mirror (all refs+tags),
-                          consistent audit snapshot, config, TOTP secret. Run it anywhere — a
-                          synced folder, an external drive, another machine over a share.
+      backup <dest>       full LOCAL backup of everything that is truth: git mirror (all refs+tags),
+                          consistent audit snapshot, config, TOTP secret. For a same-trust machine
+                          move — carries the secret. Run it anywhere: synced folder, external drive.
+      mirror <url>        off-machine backup to a git REMOTE (e.g. a private repo): content refs +
+                          a consistent audit snapshot on refs/backup/audit, verified. The TOTP secret
+                          is NEVER pushed. Run on a cadence for durable, off-box state.
       status              canon head, perspectives, proposals, audit health
       reindex             rebuild the MAP index from git
       reconcile           backfill audit events for committed ops missing one
@@ -184,6 +187,32 @@ def run(args) -> dict:
         return {"dest": args.dest, "git_sync_ok": ok, "synced_refs": len(sync["synced"]),
                 "audit_events": audit.count(), "copied": copied}
 
+    if args.cmd == "mirror":
+        # off-machine backup to a GIT REMOTE (e.g. a PRIVATE repo) in one command: content refs +
+        # a consistent audit snapshot on a dedicated ref (refs/backup/audit), both verified.
+        # The TOTP secret is deliberately NEVER pushed — it is the airlock key and is re-provisionable;
+        # keep it out of any remote, even a private one. (Use `backup <dest>` for a local bundle that
+        # DOES carry the secret, for a same-trust machine move.)
+        import sqlite3 as _sq
+        import tempfile
+        fd, snap = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        try:
+            dst = _sq.connect(snap)          # consistent snapshot, safe against a live server
+            audit.conn.backup(dst)
+            dst.close()
+            with open(snap, "rb") as f:
+                store.commit_file("refs/backup/audit", "audit.sqlite", f.read(),
+                                  f"audit snapshot ({audit.count()} events)")
+        finally:
+            os.remove(snap)
+        sync = store.mirror_push("mirror", args.url,
+                                 extra_refspecs=["refs/backup/audit:refs/backup/audit"])
+        ok = not sync["missing_on_remote"] and not sync["oid_mismatch"]
+        return {"remote": args.url, "git_sync_ok": ok, "synced_refs": len(sync["synced"]),
+                "audit_events": audit.count(),
+                "note": "content refs + audit snapshot pushed; TOTP secret NOT sent (re-provision on restore)"}
+
     if args.cmd == "reindex":
         return {"reindexed": reindex_from_git(store, index, embedder)}
 
@@ -234,7 +263,8 @@ def build_parser() -> argparse.ArgumentParser:
     tp.add_argument("--force", action="store_true", help="rotate an existing secret")
     tp.add_argument("--qr", action="store_true", help="render a scannable ASCII QR (re-displays if the secret exists)")
     sub.add_parser("totp-check").add_argument("code", help="a code from your authenticator app")
-    sub.add_parser("backup").add_argument("dest", help="destination folder for the full backup")
+    sub.add_parser("backup").add_argument("dest", help="destination folder for the full backup (carries the secret)")
+    sub.add_parser("mirror").add_argument("url", help="git remote URL (e.g. a PRIVATE repo) — content + audit, no secret")
     ib = sub.add_parser("inbox")
     ib.add_argument("--all", action="store_true", help="include already-read messages")
     ib.add_argument("--read", default=None, metavar="PATH", help="mark a message path as read")
