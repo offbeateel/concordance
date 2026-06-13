@@ -472,7 +472,8 @@ def components_from_config(cfg):
     """Build the store / index / embedder / audit / authz / airlock from a Config — shared by the
     server and the admin CLI, so both wire components the same way."""
     store = LocalCapStore(cfg.git_dir, approvers=set(cfg.approvers), canon_ref=cfg.canon_ref,
-                          committer=(cfg.committer_name, cfg.committer_email))
+                          committer=(cfg.committer_name, cfg.committer_email),
+                          git_timeout=cfg.resolved_git_timeout())
     os.makedirs(os.path.dirname(cfg.resolved_map_db()) or ".", exist_ok=True)   # a fresh deploy dir
     index = SqliteMapIndex(cfg.resolved_map_db())
     audit = SqliteAuditLog(cfg.resolved_audit_db())

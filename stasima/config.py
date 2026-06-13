@@ -70,6 +70,11 @@ class Config:
     # address + localhost automatically). Needed when a proxy forwards with its own Host —
     # e.g. tailscale serve: http_allowed_hosts = ["yourbox.your-tailnet.ts.net"]
     http_allowed_hosts: list = field(default_factory=list)
+    # Per-git-op timeout (seconds). A local git op on a text corpus is sub-second; a hang means
+    # contention (e.g. a second server process on the repo). 0 = auto by transport: 2s for stdio
+    # (one client, no queuing) / 20s for http (concurrent clients can briefly queue). Raise it if a
+    # land/reindex on a very large corpus legitimately approaches the limit.
+    git_timeout: float = 0.0
 
     @classmethod
     def load(cls, path: str | None = None, env: dict | None = None) -> "Config":
@@ -93,6 +98,11 @@ class Config:
                     data[intf] = int(data[intf])
                 except (TypeError, ValueError):
                     raise ConfigError(f"{intf} must be an integer, got {data[intf]!r}")
+        if "git_timeout" in data:
+            try:
+                data["git_timeout"] = float(data["git_timeout"])
+            except (TypeError, ValueError):
+                raise ConfigError(f"git_timeout must be a number, got {data['git_timeout']!r}")
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
         if unknown:
@@ -120,6 +130,13 @@ class Config:
             if not (0 < self.http_port < 65536):
                 raise ConfigError("http_port must be 1-65535")
             self._check_bind_address(self.http_host)
+        if self.git_timeout < 0:
+            raise ConfigError("git_timeout must be >= 0 (0 = auto by transport: 2s stdio / 20s http)")
+
+    def resolved_git_timeout(self) -> float:
+        if self.git_timeout > 0:
+            return self.git_timeout
+        return 2.0 if self.transport == "stdio" else 20.0
 
     @staticmethod
     def _check_bind_address(host: str) -> None:
