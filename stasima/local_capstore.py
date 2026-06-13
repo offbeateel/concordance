@@ -100,6 +100,7 @@ class LocalCapStore:
         committer: tuple[str, str] = ("capstore", "capstore@stasima.local"),
         author_domain: str = "stasima.local",
         git_bin: str = "git",
+        git_timeout: float = 30.0,
     ):
         self.git_dir = git_dir
         self.approvers = approvers
@@ -107,6 +108,10 @@ class LocalCapStore:
         self.committer = committer
         self.author_domain = author_domain
         self.git_bin = git_bin
+        # No single git op on a text corpus should take seconds; a hang means pathological
+        # contention (e.g. a second server process on the same repo). Bound it so the failure is
+        # LOUD and recoverable instead of an indefinite hang that strands a proposal mid-op.
+        self.git_timeout = git_timeout
 
     # ---- low-level git invocation ----
     def _run(self, *args: str, input: Optional[bytes] = None, extra_env: Optional[dict] = None):
@@ -123,7 +128,13 @@ class LocalCapStore:
             kwargs["stdin"] = subprocess.DEVNULL
         else:
             kwargs["input"] = input
-        p = subprocess.run([self.git_bin, *args], **kwargs)
+        try:
+            p = subprocess.run([self.git_bin, *args], timeout=self.git_timeout, **kwargs)
+        except subprocess.TimeoutExpired:
+            raise BackendUnavailable(
+                f"git {args[0]} exceeded {self.git_timeout:.0f}s and was aborted — almost always a second "
+                f"server process contending on the same repo (stdio spawns one server per client; run one "
+                f"at a time, or use the http transport). The operation did NOT complete; retry once clear.")
         return p.returncode, p.stdout, p.stderr.decode("utf-8", "replace")
 
     def _git(self, *args: str, input: Optional[bytes] = None, extra_env: Optional[dict] = None) -> bytes:

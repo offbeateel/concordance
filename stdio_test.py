@@ -59,7 +59,21 @@ async def main():
                                   ("canon_head", {}), ("list_instances", {})]:
                     rr = await s.call_tool(name, arg)
                     assert not getattr(rr, "isError", False), (name, rr)
-                print(f"stdio transport OK: {len(tools)} tools, announce + 3 read tools all returned")
+
+                # the WRITE + DELETE path over real stdio (Lintel found propose_retract hanging here —
+                # the deletion plumbing runs git the read tools don't). reconcile, propose an entry +
+                # log entry, then retract the log entry; all must return promptly.
+                await s.call_tool("canon_diff", {"instance_id": "stdio-probe"})
+                await s.call_tool("sup_reconcile", {"instance_id": "stdio-probe", "body": "read"})
+                await s.call_tool("propose", {"instance_id": "stdio-probe", "proposal_id": "p-stdio",
+                                              "domain": "practice", "slug": "x", "body": "x", "op_id": "ps-1"})
+                await s.call_tool("propose", {"instance_id": "stdio-probe", "proposal_id": "p-stdio",
+                                              "domain": "meta/log", "slug": "1", "body": "::1", "op_id": "ps-2",
+                                              "type": "log", "seq": "1"})
+                rt = await s.call_tool("propose_retract", {"instance_id": "stdio-probe",
+                                       "proposal_id": "p-stdio", "path": "meta/log/1.md", "op_id": "ps-3"})
+                assert not getattr(rt, "isError", False), ("propose_retract", rt)
+                print(f"stdio transport OK: {len(tools)} tools; read, propose, AND propose_retract all returned")
     if scope.cancelled_caught:
         raise SystemExit("FAIL: stdio tool calls hung (the inherited-stdin regression is back)")
 
