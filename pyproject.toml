@@ -38,5 +38,5 @@ Issues = "https://github.com/antistrophos/stasima/issues"
 packages = ["stasima"]
 
 [tool.hatch.build.targets.sdist]
-include = ["stasima/", "LICENSE", "NOTICE", "BRAND.md", "README.md", "*.md", "stasima.toml.example"]
+include = ["stasima/", "skills/", "LICENSE", "NOTICE", "BRAND.md", "README.md", "*.md", "stasima.toml.example"]
 exclude = ["examples/", "*_test.py", "brand/"]

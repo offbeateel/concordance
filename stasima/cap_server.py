@@ -63,6 +63,19 @@ def build_server(store: LocalCapStore, index=None, embedder=None, audit=None, au
             return ref
         return persp_ref(ref)
 
+    def _authored_envelope(type, title, slug, *, status="active", tags=None, references=None,
+                           supersedes=None, superseded_by=None, **extra):
+        # the one place an authored entry's envelope is built — kip_commit and propose share it so
+        # lineage (references / supersedes / superseded_by) is expressible and identical on both paths
+        env = {"type": type, "title": title or slug, "status": status,
+               "tags": tags or [], "references": references or []}
+        if supersedes:
+            env["supersedes"] = supersedes
+        if superseded_by:
+            env["superseded_by"] = superseded_by
+        env.update({k: v for k, v in extra.items() if v})
+        return env
+
     def _commit_retry(ref, path, content, author, op_id):
         for attempt in range(2):
             tip = store.resolve_ref(ref)
@@ -176,14 +189,19 @@ def build_server(store: LocalCapStore, index=None, embedder=None, audit=None, au
     @mcp.tool()
     def kip_commit(instance_id: str, domain: str, slug: str, body: str, op_id: str,
                    title: str = "", type: str = "kno",
-                   tags: list[str] | None = None, references: list[str] | None = None) -> dict:
-        """Author an entry to your append-only perspective at <domain>/<slug>.md (YAML envelope + body)."""
+                   tags: list[str] | None = None, references: list[str] | None = None,
+                   supersedes: list[str] | None = None, status: str = "active",
+                   superseded_by: list[str] | None = None) -> dict:
+        """Author an entry to your append-only perspective at <domain>/<slug>.md (YAML envelope + body).
+        Revision is supersede-not-edit: the NEW entry carries supersedes=[<old path>]; to retire the old
+        one, re-commit it with the SAME body and status='superseded', superseded_by=[<new path>] (a
+        metadata-only change — the immutability guard allows it; a different body is refused)."""
         ref = persp_ref(instance_id)
         path = f"{domain}/{slug}.md"
         _authz(instance_id, "kip_commit", ref, path)
         _check_immutable(instance_id, ref, path, body)
-        envelope = {"type": type, "title": title or slug, "status": "active",
-                    "tags": tags or [], "references": references or []}
+        envelope = _authored_envelope(type, title, slug, status=status, tags=tags, references=references,
+                                      supersedes=supersedes, superseded_by=superseded_by)
         try:
             r = _commit_retry(ref, path, compose_entry(envelope, body), instance_id, op_id)
         except CapStoreError as e:
@@ -220,19 +238,23 @@ def build_server(store: LocalCapStore, index=None, embedder=None, audit=None, au
     # ---------------------------------------------------------------- propose + track
     @mcp.tool()
     def propose(instance_id: str, proposal_id: str, domain: str, slug: str, body: str, op_id: str,
-                title: str = "", type: str = "kno", seq: str = "") -> dict:
+                title: str = "", type: str = "kno", seq: str = "",
+                tags: list[str] | None = None, references: list[str] | None = None,
+                supersedes: list[str] | None = None, status: str = "active",
+                superseded_by: list[str] | None = None) -> dict:
         """Open or extend a proposal targeting canon at <domain>/<slug>.md. Landing is the practitioner's,
         out of band. A proposal must include exactly one LOG ENTRY before it can land — the narrative of
         the change: propose(domain='meta/log', slug='<seq>', type='log', seq='<seq>') where seq is
-        canon's current seq + 1 in lowercase hex (see canon_state)."""
+        canon's current seq + 1 in lowercase hex (see canon_state). Carries the same lineage fields as
+        kip_commit (references / supersedes / superseded_by) — a canon entry's lineage is first-class."""
         ref = prop_ref(proposal_id)
         path = f"{domain}/{slug}.md"
         _authz(instance_id, "propose", ref, path)
         _check_not_staged(proposal_id)
         _require_reconciled(instance_id)
-        envelope = {"type": type, "title": title or slug, "status": "active"}
-        if seq:
-            envelope["seq"] = seq.lower()
+        envelope = _authored_envelope(type, title, slug, status=status, tags=tags, references=references,
+                                      supersedes=supersedes, superseded_by=superseded_by,
+                                      seq=seq.lower() if seq else None)
         try:
             if store.resolve_ref(ref) is None:
                 store.create_branch(ref, store.resolve_ref(store.canon_ref))

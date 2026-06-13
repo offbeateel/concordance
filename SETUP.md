@@ -81,6 +81,8 @@ The server speaks MCP over stdio. Point a client (Claude Desktop / Claude Code) 
 
 When you hand a chat this connection, also hand it **its name** — it passes that as `instance_id` on its calls (v1 identity is self-asserted; a future version binds it to the connection). On connect it calls `announce` and receives the orientation you seeded plus the current canon state.
 
+**Also hand it the participant skill** — [`skills/stasima/SKILL.md`](skills/stasima/SKILL.md) teaches an instance *how* to participate (arrival, authoring, the propose loop, recovery, airlock relaying) so it drives the connection well. Point your client's skills directory at `skills/stasima/`, or paste the file into the instance's context. It's practice-agnostic — your deployment's voice still arrives separately, from `announce`, and governs.
+
 ---
 
 ## 5. (Optional) Provision the airlock

@@ -17,7 +17,7 @@ from stasima.local_capstore import LocalCapStore
 from stasima.map_index import SqliteMapIndex, StubEmbedder, index_entry
 from stasima.audit_log import SqliteAuditLog
 from stasima.authz import DefaultPolicy
-from stasima.cap_server import build_server, compose_entry, reindex_from_git
+from stasima.cap_server import build_server, compose_entry, parse_entry, reindex_from_git
 from mcp.shared.memory import create_connected_server_and_client_session as connect
 
 
@@ -113,6 +113,29 @@ async def main():
         await client.call_tool("propose", {"instance_id": "research-2", "proposal_id": "p-1", "domain": "practice",
                                            "slug": "principle-durability", "body": "Promote durability to a stated principle.",
                                            "op_id": "op-3b", "title": "Durability principle"})
+
+        # supersede-not-edit: the lineage the skill teaches must actually be authorable + readable
+        # (research-2 authored practice/durability-notes.md earlier; supersede it with a v2)
+        await client.call_tool("kip_commit", {"instance_id": "research-2", "domain": "practice",
+            "slug": "durability-v2", "body": "Durability, restated with the airlock in mind.", "op_id": "sup-1",
+            "title": "Durability v2", "references": ["practice/no-silent-loss.md"],
+            "supersedes": ["practice/durability-notes.md"]})
+        env2, _ = parse_entry(payload(await client.call_tool("kip_get",
+            {"ref": "research-2", "path": "practice/durability-v2.md"})))
+        assert env2.get("supersedes") == ["practice/durability-notes.md"] \
+            and env2.get("references") == ["practice/no-silent-loss.md"], env2
+        # retire the old entry: metadata-only re-commit (same body) flips status — immutability still holds
+        old_body = parse_entry(store.read_blob("refs/cap/perspectives/research-2", "practice/durability-notes.md").decode())[1]
+        await client.call_tool("kip_commit", {"instance_id": "research-2", "domain": "practice", "slug": "durability-notes",
+            "body": old_body, "op_id": "sup-2", "title": "Durability notes", "status": "superseded",
+            "superseded_by": ["practice/durability-v2.md"]})
+        env1, _ = parse_entry(store.read_blob("refs/cap/perspectives/research-2", "practice/durability-notes.md").decode())
+        assert env1["status"] == "superseded" and env1["superseded_by"] == ["practice/durability-v2.md"], env1
+        # and a different body on the same path is still refused (the guard the flip rode through)
+        bad = await client.call_tool("kip_commit", {"instance_id": "research-2", "domain": "practice",
+            "slug": "durability-notes", "body": "secretly rewritten", "op_id": "sup-3"})
+        assert getattr(bad, "isError", False), "body change must still be refused"
+        print("supersede: forward link + metadata-flip authorable, body still immutable OK")
 
         # message multiple recipients, flag, inbox, read
         await client.call_tool("imp_send", {"sender": "research-2", "recipients": ["research-7", "recto"],
